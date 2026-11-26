@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CoreBank Enterprise | Bank Management System</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo-badge">CB</div>
+      <div>
+        <h1>CoreBank Enterprise</h1>
+        <span class="subtitle">Modular Bank Management System (FR-01 – FR-08)</span>
+      </div>
+    </div>
+
+    <div class="auth-controls">
+      <div class="control-group">
+        <label for="roleSelect">Active Role (FR-02)</label>
+        <select id="roleSelect">
+          <option value="ADMIN">Teller / Admin (Full Privileges)</option>
+          <option value="CUSTOMER">Customer Portal</option>
+        </select>
+      </div>
+      <div class="control-group" id="customerSelectWrapper" style="display:none;">
+        <label for="activeCustomerSelect">Authenticated Customer</label>
+        <select id="activeCustomerSelect"></select>
+      </div>
+      <div class="latency-badge" id="latencyIndicator" title="NFR Performance: < 500ms">
+        Last Op: <strong>0.00 ms</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Toast / Alert Banner -->
+    <div id="alertBanner" class="alert hidden"></div>
+
+    <!-- KPI Strip -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-label">Total Customers</span>
+        <span class="kpi-value" id="kpiCustomers">0</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Active Accounts</span>
+        <span class="kpi-value" id="kpiActiveAccounts">0</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Total Ledger Liquidity</span>
+        <span class="kpi-value" id="kpiLiquidity">$0.00</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Audit Ledger Entries</span>
+        <span class="kpi-value" id="kpiAuditCount">0</span>
+      </div>
+    </section>
+
+    <!-- Main Navigation Tabs -->
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="tab-accounts">Accounts & Statements (FR-03)</button>
+      <button class="tab-btn" data-tab="tab-transactions">Deposit / Withdraw / Transfer (FR-04–06)</button>
+      <button class="tab-btn" data-tab="tab-onboarding">Open Account (FR-01)</button>
+      <button class="tab-btn admin-only" data-tab="tab-lifecycle">Lifecycle & Admin (FR-07)</button>
+      <button class="tab-btn" data-tab="tab-architecture">UML & Audit Log</button>
+    </nav>
+
+    <!-- TAB 1: Accounts & Statement Inquiry (FR-03) -->
+    <section id="tab-accounts" class="tab-panel active">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h2>Registered Accounts</h2>
+            <span class="badge">BigDecimal Cent Precision</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Account #</th>
+                  <th>Customer</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Balance</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="accountsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Account Statement (FR-03)</h2>
+            <span id="statementAccountBadge" class="badge badge-info">Select an account</span>
+          </div>
+          <div id="statementMeta" class="statement-meta">
+            Click <strong>Statement</strong> on any account to view chronological history.
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Txn ID</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Resulting Bal</th>
+                  <th>Timestamp</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+              <tbody id="statementTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: Transactions (FR-04, FR-05, FR-06) -->
+    <section id="tab-transactions" class="tab-panel">
+      <div class="grid-3">
+        <!-- FR-04 Deposit -->
+        <div class="card">
+          <h3>Deposit Funds (FR-04)</h3>
+          <p class="hint">Credits a strictly positive amount to an ACTIVE account.</p>
+          <form id="depositForm">
+            <label>Destination Account</label>
+            <select id="depositAccountSelect" required></select>
+            <label>Amount (USD)</label>
+            <input type="number" id="depositAmount" step="0.01" min="0.01" placeholder="250.00" required />
+            <label>Remarks</label>
+            <input type="text" id="depositRemarks" placeholder="Cash / Check Deposit" />
+            <button type="submit" class="btn btn-primary">Execute Deposit</button>
+          </form>
+        </div>
+
+        <!-- FR-05 Withdraw -->
+        <div class="card">
+          <h3>Withdraw Funds (FR-05)</h3>
+          <p class="hint">Savings min balance: $500.00 | Current overdraft limit: $1,000.00</p>
+          <form id="withdrawForm">
+            <label>Source Account</label>
+            <select id="withdrawAccountSelect" required></select>
+            <label>Amount (USD)</label>
+            <input type="number" id="withdrawAmount" step="0.01" min="0.01" placeholder="100.00" required />
+            <label>Remarks</label>
+            <input type="text" id="withdrawRemarks" placeholder="ATM / Teller Withdrawal" />
+            <button type="submit" class="btn btn-warning">Execute Withdrawal</button>
+          </form>
+        </div>
+
+        <!-- FR-06 Atomic Transfer -->
+        <div class="card">
+          <h3>Atomic Transfer (FR-06)</h3>
+          <p class="hint">All-or-nothing execution with automatic state rollback on failure.</p>
+          <form id="transferForm">
+            <label>Source Account</label>
+            <select id="transferSrcSelect" required></select>
+            <label>Destination Account</label>
+            <select id="transferDstSelect" required></select>
+            <label>Amount (USD)</label>
+            <input type="number" id="transferAmount" step="0.01" min="0.01" placeholder="150.00" required />
+            <label>Remarks</label>
+            <input type="text" id="transferRemarks" placeholder="Peer / Internal Transfer" />
+            <label class="checkbox-row">
+              <input type="checkbox" id="simulateFaultCheckbox" />
+              <span>Simulate Mid-Transfer System Fault (Test Rollback)</span>
+            </label>
+            <button type="submit" class="btn btn-success">Execute Atomic Transfer</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: Customer & Account Creation (FR-01) -->
+    <section id="tab-onboarding" class="tab-panel">
+      <div class="grid-2">
+        <div class="card">
+          <h3>Open New Bank Account (FR-01)</h3>
+          <p class="hint">Register a new customer or select an existing profile. Savings requires &ge; $500.00 initial deposit; Current requires &ge; $0.00.</p>
+          <form id="openAccountForm">
+            <label>Customer Mode</label>
+            <select id="customerModeSelect">
+              <option value="NEW">Register New Customer Profile</option>
+              <option value="EXISTING">Use Existing Customer Profile</option>
+            </select>
+
+            <div id="newCustomerFields">
+              <label>Customer Full Name</label>
+              <input type="text" id="newCustomerName" placeholder="e.g., Jordan Vance" />
+            </div>
+
+            <div id="existingCustomerFields" style="display:none;">
+              <label>Select Customer</label>
+              <select id="existingCustomerSelect"></select>
+            </div>
+
+            <label>Account Type</label>
+            <select id="accountTypeSelect">
+              <option value="SAVINGS">SavingsAccount (Min Balance: $500.00)</option>
+              <option value="CURRENT">CurrentAccount (Overdraft Limit: $1,000.00)</option>
+            </select>
+
+            <label>Initial Deposit (USD)</label>
+            <input type="number" id="initialDepositInput" step="0.01" min="0" value="500.00" required />
+
+            <label>Initial Lifecycle State (State Machine)</label>
+            <select id="initialStatusSelect">
+              <option value="ACTIVE">ACTIVE (KYC Verified & Funded)</option>
+              <option value="PENDING">PENDING (Awaiting KYC Verification)</option>
+            </select>
+
+            <button type="submit" class="btn btn-primary">Create Account</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Account Policy & State Rules</h3>
+          <ul class="policy-list">
+            <li><strong>SavingsAccount:</strong> Enforces a strict minimum balance of <code>$500.00</code> on creation and every withdrawal/transfer.</li>
+            <li><strong>CurrentAccount:</strong> Allows overdrafts down to <code>-$1,000.00</code> for operational liquidity.</li>
+            <li><strong>PENDING State:</strong> Accounts created in <code>PENDING</code> cannot process deposits, withdrawals, or transfers until activated via KYC approval.</li>
+            <li><strong>FROZEN State:</strong> Blocks all debit/credit transactions until unfrozen by an authorized Teller/Admin.</li>
+            <li><strong>CLOSED State:</strong> Terminal state. Requires account balance to equal exactly <code>$0.00</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: Account Lifecycle Management (FR-07) -->
+    <section id="tab-lifecycle" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <h2>Account Lifecycle State Machine (FR-07)</h2>
+          <span class="badge badge-warn">Teller / Admin Privileged Access</span>
+        </div>
+        <p class="hint">Transitions: <code>PENDING &rarr; ACTIVE</code> (KYC), <code>ACTIVE &harr; FROZEN</code> (Hold/Release), <code>ACTIVE &rarr; CLOSED</code> (Requires $0.00 balance).</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Account #</th>
+                <th>Owner</th>
+                <th>Type</th>
+                <th>Balance</th>
+                <th>Current State</th>
+                <th>Lifecycle Actions</th>
+              </tr>
+            </thead>
+            <tbody id="lifecycleTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: UML Architecture & Immutable Audit Log -->
+    <section id="tab-architecture" class="tab-panel">
+      <div class="grid-2">
+        <div class="card">
+          <h3>Domain & Service Architecture (Section 11 Class Diagram)</h3>
+          <pre class="code-block">js/
+├── domain/
+│   ├── Money.js           // Exact integer-cent BigDecimal math
+│   ├── Customer.js        // customerId, fullName
+│   ├── Transaction.js     // Immutable Object.freeze() audit entry
+│   ├── Account.js         // Abstract base + SavingsAccount & CurrentAccount
+│   └── BankingException.js// Domain rule violation error type
+├── service/
+│   └── BankService.js     // Atomic executeTransfer() with rollback
+└── controller/
+    └── BankController.js  // RBAC enforcement & latency telemetry</pre>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Immutable System Audit Log (NFR Security)</h3>
+            <button id="clearLogViewBtn" class="btn btn-sm">Refresh Log</button>
+          </div>
+          <div class="table-wrap max-h">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Actor</th>
+                  <th>Operation</th>
+                  <th>Outcome</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="auditLogTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
